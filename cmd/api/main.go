@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"internal/handlers"
+	"log"
+	"net/http"
+)
 
 func main() {
-	fmt.Println("TaskFlow API Starting...")
+	http.HandleFunc("/health", handlers.Health)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
