@@ -8,6 +8,10 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/health", handlers.Health)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	mux := http.NewServeMux()
+
+	handlers.RegisterRoutes(mux)
+
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }
