@@ -1,9 +1,10 @@
 package main
 
 import (
-	"internal/handlers"
 	"log"
 	"net/http"
+
+	"github.com/jwhite9387/taskflow-api/internal/handlers"
 )
 
 func main() {
