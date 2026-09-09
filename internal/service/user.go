@@ -2,11 +2,13 @@ package service
 
 import (
 	"strings"
+	"uuid"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
+	ID           uuid.UUID
 	Username     string
 	Email        string
 	PasswordHash string
@@ -78,7 +80,9 @@ func (s *UserService) Register(username, email, password string) error {
 	if err != nil {
 		return err
 	}
+	id := uuid.New()
 	user := User{
+		ID:           id,
 		Username:     username,
 		Email:        email,
 		PasswordHash: passwordHash,
