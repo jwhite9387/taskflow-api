@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/jwhite9387/taskflow-api/internal/service"
 )
 
 type RegisterUserRequest struct {
@@ -17,6 +20,10 @@ type RegisterUserResponse struct {
 
 type ValidationErrorResponse struct {
 	Errors []string `json:"errors"`
+}
+
+type UserHandler struct {
+	userService *service.UserService
 }
 
 func (r RegisterUserRequest) Validate() []string {
@@ -37,7 +44,7 @@ func (r RegisterUserRequest) Validate() []string {
 	return errs
 }
 
-func RegisterUser(w http.ResponseWriter, r *http.Request) {
+func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -50,15 +57,22 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errs := user.Validate(); len(errs) > 0 {
-		response := ValidationErrorResponse{
-			Errors: errs,
+	if err := h.userService.Register(user.Username, user.Email, user.Password); err != nil {
+		var validationErr service.ValidationError
+
+		if errors.As(err, &validationErr) {
+			response := ValidationErrorResponse{
+				Errors: validationErr.Errors,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				return
+			}
+			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			// TODO: Log the error when we add logging
-		}
+
+		http.Error(w, "Unable to register user", http.StatusInternalServerError)
 		return
 	}
 
