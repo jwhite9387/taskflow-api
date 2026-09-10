@@ -52,3 +52,39 @@ func TestMemoryUserRepository_CreateDuplicate(t *testing.T) {
 		t.Errorf("expected ErrUserAlreadyExists, got %v", err)
 	}
 }
+
+func TestMemoryUserRepository_FindByEmail(t *testing.T) {
+	repo := NewMemoryUserRepository()
+	id := uuid.New()
+	testUser := service.User{
+		ID:           id,
+		Username:     "test user",
+		Email:        "test@test.com",
+		PasswordHash: "test1234",
+	}
+
+	if err := repo.Create(testUser); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	foundUser, err := repo.FindByEmail(testUser.Email)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if foundUser != testUser {
+		t.Errorf("expected %v, got %v", testUser, foundUser)
+	}
+}
+
+func TestMemoryUserRepository_FindByEmailNotFound(t *testing.T) {
+	repo := NewMemoryUserRepository()
+
+	foundUser, err := repo.FindByEmail("doesnotexist@example.com")
+	if !errors.Is(err, service.ErrUserNotFound) {
+		t.Fatalf("expected %v, got %v", service.ErrUserNotFound, err)
+	}
+
+	if foundUser != (service.User{}) {
+		t.Fatalf("expected no user")
+	}
+}

@@ -18,6 +18,10 @@ func (f *fakeUserRepository) Create(user User) error {
 	return f.err
 }
 
+func (f *fakeUserRepository) FindByEmail(email string) (User, error) {
+	return User{}, ErrUserNotFound
+}
+
 func TestUserService_Register(t *testing.T) {
 	repo := &fakeUserRepository{}
 	service := NewUserService(repo)

@@ -28,3 +28,12 @@ func (r *MemoryUserRepository) Create(user service.User) error {
 	r.users[user.ID] = user
 	return nil
 }
+
+func (r *MemoryUserRepository) FindByEmail(email string) (service.User, error) {
+	for _, user := range r.users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return service.User{}, service.ErrUserNotFound
+}

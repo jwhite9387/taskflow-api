@@ -1,11 +1,14 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"uuid"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrUserNotFound = errors.New("user not found")
 
 type User struct {
 	ID           uuid.UUID
@@ -16,6 +19,7 @@ type User struct {
 
 type UserRepository interface {
 	Create(user User) error
+	FindByEmail(email string) (User, error)
 }
 
 type UserService struct {
