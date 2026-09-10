@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"testing"
 	"uuid"
 )
@@ -8,12 +9,13 @@ import (
 type fakeUserRepository struct {
 	user         User
 	createCalled bool
+	err          error
 }
 
 func (f *fakeUserRepository) Create(user User) error {
 	f.createCalled = true
 	f.user = user
-	return nil
+	return f.err
 }
 
 func TestUserService_Register(t *testing.T) {
@@ -63,5 +65,20 @@ func TestUserService_RegisterValidation(t *testing.T) {
 				t.Fatalf("expected repository Create not to be called")
 			}
 		})
+	}
+}
+
+func TestUserService_RegisterRepositoryError(t *testing.T) {
+	repoErr := errors.New("repository error")
+
+	repo := &fakeUserRepository{
+		err: repoErr,
+	}
+
+	service := NewUserService(repo)
+	err := service.Register("josh", "josh@example.com", "password123")
+
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repository error, got %v", err)
 	}
 }
