@@ -9,12 +9,19 @@ import (
 )
 
 var ErrUserNotFound = errors.New("user not found")
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type User struct {
 	ID           uuid.UUID
 	Username     string
 	Email        string
 	PasswordHash string
+}
+
+type LoginResult struct {
+	ID       uuid.UUID
+	Username string
+	Email    string
 }
 
 type UserRepository interface {
@@ -95,4 +102,27 @@ func (s *UserService) Register(username, email, password string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *UserService) Login(email, password string) (LoginResult, error) {
+	user, err := s.repo.FindByEmail(email)
+
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return LoginResult{}, ErrInvalidCredentials
+		}
+		return LoginResult{}, err
+	}
+
+	if !VerifyPassword(password, user.PasswordHash) {
+		return LoginResult{}, ErrInvalidCredentials
+	}
+
+	result := LoginResult{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+	}
+
+	return result, nil
 }

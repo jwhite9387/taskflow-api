@@ -13,4 +13,5 @@ func RegisterRoutes(mux *http.ServeMux, userService *service.UserService) {
 
 	mux.HandleFunc("/health", Health)
 	mux.HandleFunc("/users/register", userHandler.RegisterUser)
+	mux.HandleFunc("/users/login", userHandler.LoginUser)
 }

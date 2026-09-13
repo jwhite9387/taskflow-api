@@ -86,3 +86,13 @@ func TestUserService_RegisterRepositoryError(t *testing.T) {
 		t.Fatalf("expected repository error, got %v", err)
 	}
 }
+
+func TestUserService_LoginUserNotFound(t *testing.T) {
+	repo := &fakeUserRepository{}
+	testService := NewUserService(repo)
+
+	_, err := testService.Login("doesnotexist@example.com", "password123")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+}
