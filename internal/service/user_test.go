@@ -12,6 +12,8 @@ type fakeUserRepository struct {
 	err          error
 }
 
+type fakeTokenCreator struct{}
+
 func (f *fakeUserRepository) Create(user User) error {
 	f.createCalled = true
 	f.user = user
@@ -19,15 +21,23 @@ func (f *fakeUserRepository) Create(user User) error {
 }
 
 func (f *fakeUserRepository) FindByEmail(email string) (User, error) {
-	return User{}, ErrUserNotFound
+	if f.user.Email != email {
+		return User{}, ErrUserNotFound
+	}
+	return f.user, nil
+}
+
+func (f *fakeTokenCreator) CreateToken(userID uuid.UUID) (string, error) {
+	return "test-token", nil
 }
 
 func TestUserService_Register(t *testing.T) {
 	repo := &fakeUserRepository{}
-	service := NewUserService(repo)
+	tokenCreator := &fakeTokenCreator{}
+	testService := NewUserService(repo, tokenCreator)
 	password := "password123"
 
-	if err := service.Register("josh", "josh@example.com", password); err != nil {
+	if err := testService.Register("josh", "josh@example.com", password); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -60,8 +70,9 @@ func TestUserService_RegisterValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &fakeUserRepository{}
-			service := NewUserService(repo)
-			if err := service.Register(tt.username, tt.email, tt.password); err == nil {
+			tokenCreator := &fakeTokenCreator{}
+			testService := NewUserService(repo, tokenCreator)
+			if err := testService.Register(tt.username, tt.email, tt.password); err == nil {
 				t.Fatalf("expected error for invalid registration")
 			}
 
@@ -78,9 +89,10 @@ func TestUserService_RegisterRepositoryError(t *testing.T) {
 	repo := &fakeUserRepository{
 		err: repoErr,
 	}
+	tokenCreator := &fakeTokenCreator{}
 
-	service := NewUserService(repo)
-	err := service.Register("josh", "josh@example.com", "password123")
+	testService := NewUserService(repo, tokenCreator)
+	err := testService.Register("josh", "josh@example.com", "password123")
 
 	if !errors.Is(err, repoErr) {
 		t.Fatalf("expected repository error, got %v", err)
@@ -89,9 +101,76 @@ func TestUserService_RegisterRepositoryError(t *testing.T) {
 
 func TestUserService_LoginUserNotFound(t *testing.T) {
 	repo := &fakeUserRepository{}
-	testService := NewUserService(repo)
+	tokenCreator := &fakeTokenCreator{}
+	testService := NewUserService(repo, tokenCreator)
 
 	_, err := testService.Login("doesnotexist@example.com", "password123")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+}
+
+func TestUserService_LoginSuccess(t *testing.T) {
+	password := "password123"
+	passwordHash, err := HashPassword(password)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	userID, err := uuid.Parse("123e4567-e89b-12d3-a456-426614174000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	testUser := User{
+		ID:           userID,
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: passwordHash,
+	}
+	repo := &fakeUserRepository{
+		user: testUser,
+	}
+	tokenCreator := &fakeTokenCreator{}
+
+	testService := NewUserService(repo, tokenCreator)
+
+	result, err := testService.Login("test@example.com", password)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if result.Token != "test-token" {
+		t.Fatalf("expected token %q, got %q", "test-token", result.Token)
+	}
+}
+
+func TestUserService_LoginInvalidPassword(t *testing.T) {
+	password := "password123"
+	passwordHash, err := HashPassword(password)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	userID, err := uuid.Parse("123e4567-e89b-12d3-a456-426614174000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	testUser := User{
+		ID:           userID,
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: passwordHash,
+	}
+	repo := &fakeUserRepository{
+		user: testUser,
+	}
+	tokenCreator := &fakeTokenCreator{}
+
+	testService := NewUserService(repo, tokenCreator)
+
+	_, err = testService.Login("test@example.com", "wrongpassword")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}

@@ -28,6 +28,7 @@ type LoginUserResponse struct {
 	ID       uuid.UUID `json:"id"`
 	Username string    `json:"username"`
 	Email    string    `json:"email"`
+	Token    string    `json:"token"`
 }
 
 type ValidationErrorResponse struct {
@@ -129,6 +130,7 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		ID:       result.ID,
 		Username: result.Username,
 		Email:    result.Email,
+		Token:    result.Token,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

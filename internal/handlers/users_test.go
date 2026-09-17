@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ type fakeUserRepository struct {
 	user service.User
 }
 
+type fakeTokenCreator struct{}
+
 func (f *fakeUserRepository) FindByEmail(email string) (service.User, error) {
 	if email == f.user.Email {
 		return f.user, nil
@@ -28,64 +31,14 @@ func (f *fakeUserRepository) Create(user service.User) error {
 	return nil
 }
 
-func TestUserHandler_LoginUser(t *testing.T) {
-	repo := &fakeUserRepository{}
-	testService := service.NewUserService(repo)
-	password := "password123"
-
-	passwordHash, err := service.HashPassword(password)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	testUser := service.User{
-		ID:           uuid.New(),
-		Username:     "josh",
-		Email:        "josh@example.com",
-		PasswordHash: passwordHash,
-	}
-	repo.user = testUser
-
-	handler := &UserHandler{
-		userService: testService,
-	}
-
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/users/login",
-		strings.NewReader(`{"email":"josh@example.com","password":"password123"}`),
-	)
-
-	recorder := httptest.NewRecorder()
-
-	handler.LoginUser(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", recorder.Code)
-	}
-
-	var response LoginUserResponse
-
-	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
-		t.Fatalf("expected valid JSON response, got %v", err)
-	}
-
-	if response.ID != testUser.ID {
-		t.Errorf("expected ID %v, got %v", testUser.ID, response.ID)
-	}
-
-	if response.Username != testUser.Username {
-		t.Errorf("expected username %q, got %q", testUser.Username, response.Username)
-	}
-
-	if response.Email != testUser.Email {
-		t.Errorf("expected email %q, got %q", testUser.Email, response.Email)
-	}
+func (f *fakeTokenCreator) CreateToken(userID uuid.UUID) (string, error) {
+	return "test-token", nil
 }
 
 func TestUserHandler_InvalidPassword(t *testing.T) {
 	repo := &fakeUserRepository{}
-	testService := service.NewUserService(repo)
+	tokenCreator := &fakeTokenCreator{}
+	testService := service.NewUserService(repo, tokenCreator)
 	password := "password123"
 
 	passwordHash, err := service.HashPassword(password)
@@ -124,9 +77,10 @@ func TestUserHandler_InvalidPassword(t *testing.T) {
 	}
 }
 
-func TestHandler_UserNotFound(t *testing.T) {
+func TestUserHandler_UserNotFound(t *testing.T) {
 	repo := &fakeUserRepository{}
-	testService := service.NewUserService(repo)
+	tokenCreator := &fakeTokenCreator{}
+	testService := service.NewUserService(repo, tokenCreator)
 
 	handler := &UserHandler{
 		userService: testService,
@@ -144,4 +98,84 @@ func TestHandler_UserNotFound(t *testing.T) {
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", recorder.Code)
 	}
+}
+
+func TestUserHandler_LoginSuccess(t *testing.T) {
+	password := "password123"
+	passwordHash, err := service.HashPassword(password)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	userID, err := uuid.Parse("123e4567-e89b-12d3-a456-426614174000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	testUser := service.User{
+		ID:           userID,
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: passwordHash,
+	}
+
+	repo := &fakeUserRepository{
+		user: testUser,
+	}
+
+	tokenCreator := &fakeTokenCreator{}
+
+	testService := service.NewUserService(repo, tokenCreator)
+	handler := &UserHandler{
+		userService: testService,
+	}
+
+	loginRequest := LoginUserRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	}
+
+	body, err := json.Marshal(loginRequest)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	buffer := bytes.NewBuffer(body)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/users/login",
+		buffer,
+	)
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	handler.LoginUser(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var response LoginUserResponse
+
+	err = json.NewDecoder(recorder.Body).Decode(&response)
+	if err != nil {
+		t.Fatalf("expected valid JSON response, got %v", err)
+	}
+
+	if response.Token != "test-token" {
+		t.Fatalf("expected token %q, got %q", "test-token", response.Token)
+	}
+
+	if response.ID != userID {
+		t.Fatalf("expected ID %q, got %q", userID, response.ID)
+	}
+
+	if response.Username != "testuser" {
+		t.Fatalf("expected username %q, got %q", "testuser", response.Username)
+	}
+
+	if response.Email != "test@example.com" {
+		t.Fatalf("expected email %q, got %q", "test@example.com", response.Email)
+	}
+
 }

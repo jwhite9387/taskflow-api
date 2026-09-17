@@ -22,6 +22,7 @@ type LoginResult struct {
 	ID       uuid.UUID
 	Username string
 	Email    string
+	Token    string
 }
 
 type UserRepository interface {
@@ -29,8 +30,13 @@ type UserRepository interface {
 	FindByEmail(email string) (User, error)
 }
 
+type TokenCreator interface {
+	CreateToken(userID uuid.UUID) (string, error)
+}
+
 type UserService struct {
-	repo UserRepository
+	repo         UserRepository
+	tokenCreator TokenCreator
 }
 
 type ValidationError struct {
@@ -41,9 +47,10 @@ func (e ValidationError) Error() string {
 	return strings.Join(e.Errors, "; ")
 }
 
-func NewUserService(repo UserRepository) *UserService {
+func NewUserService(repo UserRepository, tokenCreator TokenCreator) *UserService {
 	return &UserService{
-		repo: repo,
+		repo:         repo,
+		tokenCreator: tokenCreator,
 	}
 }
 
@@ -118,10 +125,16 @@ func (s *UserService) Login(email, password string) (LoginResult, error) {
 		return LoginResult{}, ErrInvalidCredentials
 	}
 
+	token, err := s.tokenCreator.CreateToken(user.ID)
+	if err != nil {
+		return LoginResult{}, err
+	}
+
 	result := LoginResult{
 		ID:       user.ID,
 		Username: user.Username,
 		Email:    user.Email,
+		Token:    token,
 	}
 
 	return result, nil
