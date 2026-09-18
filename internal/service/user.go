@@ -28,6 +28,7 @@ type LoginResult struct {
 type UserRepository interface {
 	Create(user User) error
 	FindByEmail(email string) (User, error)
+	FindByID(id uuid.UUID) (User, error)
 }
 
 type TokenCreator interface {
@@ -138,4 +139,12 @@ func (s *UserService) Login(email, password string) (LoginResult, error) {
 	}
 
 	return result, nil
+}
+
+func (s *UserService) GetUserByID(id uuid.UUID) (User, error) {
+	user, err := s.repo.FindByID(id)
+	if err != nil {
+		return User{}, err
+	}
+	return user, nil
 }

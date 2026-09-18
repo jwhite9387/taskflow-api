@@ -20,7 +20,7 @@ func main() {
 	tokenCreator := auth.NewJWTManager(secret)
 	userService := service.NewUserService(repo, tokenCreator)
 	mux := http.NewServeMux()
-	handlers.RegisterRoutes(mux, userService)
+	handlers.RegisterRoutes(mux, userService, tokenCreator)
 
 	addr := ":" + config.Port()
 

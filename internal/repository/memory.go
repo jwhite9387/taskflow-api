@@ -37,3 +37,12 @@ func (r *MemoryUserRepository) FindByEmail(email string) (service.User, error) {
 	}
 	return service.User{}, service.ErrUserNotFound
 }
+
+func (r *MemoryUserRepository) FindByID(id uuid.UUID) (service.User, error) {
+	user, ok := r.users[id]
+
+	if ok {
+		return user, nil
+	}
+	return service.User{}, service.ErrUserNotFound
+}

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"uuid"
 
+	"github.com/jwhite9387/taskflow-api/internal/middleware"
 	"github.com/jwhite9387/taskflow-api/internal/service"
 )
 
@@ -23,6 +24,13 @@ func (f *fakeUserRepository) FindByEmail(email string) (service.User, error) {
 		return f.user, nil
 	}
 
+	return service.User{}, service.ErrUserNotFound
+}
+
+func (f *fakeUserRepository) FindByID(id uuid.UUID) (service.User, error) {
+	if id == f.user.ID {
+		return f.user, nil
+	}
 	return service.User{}, service.ErrUserNotFound
 }
 
@@ -178,4 +186,103 @@ func TestUserHandler_LoginSuccess(t *testing.T) {
 		t.Fatalf("expected email %q, got %q", "test@example.com", response.Email)
 	}
 
+}
+
+func TestUserHandler_GetCurrentUserSuccess(t *testing.T) {
+	userID, err := uuid.Parse("123e4567-e89b-12d3-a456-426614174000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	testUser := service.User{
+		ID:       userID,
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+
+	repo := &fakeUserRepository{
+		user: testUser,
+	}
+	tokenCreator := &fakeTokenCreator{}
+	testService := service.NewUserService(repo, tokenCreator)
+
+	handler := &UserHandler{
+		userService: testService,
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/users/me", nil)
+	request = request.WithContext(
+		middleware.WithUserID(request.Context(), userID),
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.GetCurrentUser(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var response CurrentUserResponse
+
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.ID != userID {
+		t.Errorf("expected ID %v, got %v", userID, response.ID)
+	}
+
+	if response.Username != "testuser" {
+		t.Errorf("expected username testuser, got %s", response.Username)
+	}
+
+	if response.Email != "test@example.com" {
+		t.Errorf("expected email test@example.com, got %s", response.Email)
+	}
+
+}
+
+func TestUserHandler_GetCurrentUserUnauthorized(t *testing.T) {
+	repo := &fakeUserRepository{}
+	tokenCreator := &fakeTokenCreator{}
+	userService := service.NewUserService(repo, tokenCreator)
+
+	handler := &UserHandler{
+		userService: userService,
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/users/me", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.GetCurrentUser(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", recorder.Code)
+	}
+}
+
+func TestUserHandler_GetCurrentUserNotFound(t *testing.T) {
+	userID := uuid.New()
+
+	repo := &fakeUserRepository{}
+	tokenCreator := &fakeTokenCreator{}
+	userService := service.NewUserService(repo, tokenCreator)
+
+	handler := &UserHandler{
+		userService: userService,
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/users/me", nil)
+	request = request.WithContext(
+		middleware.WithUserID(request.Context(), userID),
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.GetCurrentUser(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
+	}
 }

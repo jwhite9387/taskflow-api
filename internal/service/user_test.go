@@ -27,6 +27,13 @@ func (f *fakeUserRepository) FindByEmail(email string) (User, error) {
 	return f.user, nil
 }
 
+func (f *fakeUserRepository) FindByID(id uuid.UUID) (User, error) {
+	if f.user.ID != id {
+		return User{}, ErrUserNotFound
+	}
+	return f.user, nil
+}
+
 func (f *fakeTokenCreator) CreateToken(userID uuid.UUID) (string, error) {
 	return "test-token", nil
 }
@@ -173,5 +180,48 @@ func TestUserService_LoginInvalidPassword(t *testing.T) {
 	_, err = testService.Login("test@example.com", "wrongpassword")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+}
+
+func TestUserService_GetUserByID(t *testing.T) {
+	userID, err := uuid.Parse("123e4567-e89b-12d3-a456-426614174000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	testUser := User{
+		ID:       userID,
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+	repo := &fakeUserRepository{
+		user: testUser,
+	}
+
+	tokenCreator := &fakeTokenCreator{}
+	testService := NewUserService(repo, tokenCreator)
+
+	result, err := testService.GetUserByID(testUser.ID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if result != testUser {
+		t.Fatalf("expected user %v, got %v", testUser, result)
+	}
+}
+
+func TestUserService_GetUserByIDNotFound(t *testing.T) {
+	repo := &fakeUserRepository{}
+	testService := NewUserService(repo, &fakeTokenCreator{})
+
+	userID, err := uuid.Parse("123e4567-e89b-12d3-a456-426614174000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	_, err = testService.GetUserByID(userID)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }

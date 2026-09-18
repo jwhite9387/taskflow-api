@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"uuid"
 
+	"github.com/jwhite9387/taskflow-api/internal/middleware"
 	"github.com/jwhite9387/taskflow-api/internal/service"
 )
 
@@ -29,6 +30,12 @@ type LoginUserResponse struct {
 	Username string    `json:"username"`
 	Email    string    `json:"email"`
 	Token    string    `json:"token"`
+}
+
+type CurrentUserResponse struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+	Email    string    `json:"email"`
 }
 
 type ValidationErrorResponse struct {
@@ -140,4 +147,35 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.userService.GetUserByID(userID)
+
+	if errors.Is(err, service.ErrUserNotFound) {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response := CurrentUserResponse{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(w).Encode(response)
 }
